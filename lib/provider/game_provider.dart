@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bishop/bishop.dart' as bishop;
 import 'package:flutter/cupertino.dart';
 import 'package:square_bishop/square_bishop.dart';
@@ -22,6 +24,8 @@ class GameProvider extends ChangeNotifier{
   PlayerColor _playerColor = PlayerColor.white;
   GameDifficulty _gameDifficulty = GameDifficulty.easy;
   String _gameId = '';
+  Timer? _blackTimer;
+  Timer? _whiteTimer;
 
   String get gameId => _gameId;
 
@@ -49,6 +53,8 @@ class GameProvider extends ChangeNotifier{
 
   int get incrementalValue => _incrementalValue;
   int get player => _player;
+  Timer? get blackTimer => _blackTimer;
+  Timer? get whiteTimer => _whiteTimer;
   PlayerColor get playerColor => _playerColor;
 
   Duration get whitesTime => _whitesTime;
@@ -191,5 +197,55 @@ class GameProvider extends ChangeNotifier{
         : GameDifficulty.hard;
     notifyListeners();
   }
+
+  void startBlackTimer({required BuildContext context, required Function onNewGame}){
+    _blackTimer = Timer.periodic(Duration(seconds: 1), (_) {
+      _blacksTime = _blacksTime - const Duration(seconds: 1);
+      notifyListeners();
+
+      if(_blacksTime <= Duration.zero){
+        _blackTimer!.cancel();
+
+        notifyListeners();
+        //Show Game Over Dialog
+        print("Black has Lost");
+
+      }
+    });
+  }
+
+  void startWhiteTimer({required BuildContext context, required Function onNewGame}){
+    _whiteTimer = Timer.periodic(Duration(seconds: 1), (_) {
+      _whitesTime = _whitesTime - const Duration(seconds: 1);
+      notifyListeners();
+      print("$_whitesTime");
+      print("$_whiteTimer");
+      if(_whitesTime <= Duration.zero){
+        _whiteTimer!.cancel();
+
+
+        notifyListeners();
+        //Show Game Over Dialog
+        print("White has Lost");
+
+      }
+    });
+  }
+
+  void stopBlackTimer(){
+    if(_blackTimer != null) {
+      _blacksTime += Duration(seconds: _incrementalValue);
+      _blackTimer!.cancel();
+      notifyListeners();
+    }
+  }
+  void stopWhiteTimer(){
+    if(_whiteTimer != null) {
+      _whitesTime += Duration(seconds: _incrementalValue);
+      _whiteTimer!.cancel();
+      notifyListeners();
+    }
+  }
+
 
 }

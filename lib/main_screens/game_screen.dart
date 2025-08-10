@@ -23,6 +23,9 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     final gameProvider = context.read<GameProvider>();
     gameProvider.resetGame(newGame: false);
+    if(mounted){
+      letOtherPlayerPlayFirst();
+    }
     super.initState();
   }
 
@@ -33,13 +36,34 @@ class _GameScreenState extends State<GameScreen> {
   // }
   //
   // void _flipBoard() => setState(() => flipBoard = !flipBoard);
+  void letOtherPlayerPlayFirst(){
+    final gameProvider = context.read<GameProvider>();
+
+    //wait for Widget to rebuild........
+    WidgetsBinding.instance.addPostFrameCallback((_) async{
+      if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
+        gameProvider.setAiThinking(true);
+        await Future.delayed(
+
+            Duration(milliseconds: Random().nextInt(4750) + 250));
+        gameProvider.game.makeRandomMove();
+        gameProvider.setAiThinking( false);
+        gameProvider.setSquaresState();
+      }
+    });
+  }
 
   void _onMove(Move move) async {
     final gameProvider = context.read<GameProvider>();
 
     bool result = gameProvider.makeSquaresMove(move);
     if (result) {
-      gameProvider.setSquaresState();
+      gameProvider.setSquaresState()
+          .whenComplete((){
+              gameProvider.stopWhiteTimer();
+              startTimer(isWhiteTimer: false, onNewGame: (){});
+              print("White Timer should Stop, and BlackTimer will start...");
+          });
     }
 
     if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
@@ -49,7 +73,22 @@ class _GameScreenState extends State<GameScreen> {
           Duration(milliseconds: Random().nextInt(4750) + 250));
       gameProvider.game.makeRandomMove();
        gameProvider.setAiThinking( false);
-      gameProvider.setSquaresState();
+      gameProvider.setSquaresState()
+          .whenComplete((){
+            gameProvider.stopBlackTimer();
+            print("Black Timer should Stop, and WhiteTimer will start...");
+            startTimer(isWhiteTimer: true, onNewGame: (){});
+          });
+    }
+  }
+
+  void startTimer({required bool isWhiteTimer, required Function onNewGame}){
+    final gameProvider = context.read<GameProvider>();
+    if(isWhiteTimer){
+      gameProvider.startWhiteTimer(context: context, onNewGame: onNewGame);
+    }
+    else{
+      gameProvider.startBlackTimer(context: context, onNewGame: onNewGame);
     }
   }
   @override
@@ -61,6 +100,17 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: Colors.purple,
         automaticallyImplyLeading: false,
         title: Text("Chess by RP",style: TextStyle(color: Colors.white),),centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            // Your custom method here
+            gameProvider.stopWhiteTimer();
+            gameProvider.stopBlackTimer();
+
+            // Then navigate back
+            Navigator.pop(context);
+          },
+        ),
         actions: [
           const SizedBox(height: 32),
           IconButton(
@@ -89,8 +139,8 @@ class _GameScreenState extends State<GameScreen> {
                   leading: CircleAvatar(radius: 25,
                     backgroundImage: AssetImage(AssetManagerChess.stocFishIcon),),
                   title: const Text("Stock Fish"),
-                  subtitle: Text("Rating 3200"),
-                  trailing: Text("${gameProvider.whitesTime}"),
+                  subtitle: const Text("Rating 3200"),
+                  trailing: Text("${gameProvider.blacksTime}"),
                 ),
 
                 Padding(
@@ -114,8 +164,8 @@ class _GameScreenState extends State<GameScreen> {
                   leading: CircleAvatar(radius: 25,
                     backgroundImage: AssetImage(AssetManagerChess.userIcon),),
                   title: const Text("Rohan Pal"),
-                  subtitle: Text("Rating 1200"),
-                  trailing: Text("${gameProvider.blacksTime}"),
+                  subtitle: const Text("Rating 1200"),
+                  trailing: Text("${gameProvider.whitesTime}"),
                 ),
 
               ],
