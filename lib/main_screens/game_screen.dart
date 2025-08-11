@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:square_bishop/square_bishop.dart';
 import 'package:squares/squares.dart';
 
+import '../helper/helper_methods.dart';
 import '../provider/game_provider.dart';
 import '../service/asset_manager.dart';
 class GameScreen extends StatefulWidget {
@@ -48,7 +49,12 @@ class _GameScreenState extends State<GameScreen> {
             Duration(milliseconds: Random().nextInt(4750) + 250));
         gameProvider.game.makeRandomMove();
         gameProvider.setAiThinking( false);
-        gameProvider.setSquaresState();
+        gameProvider.setSquaresState()
+            .whenComplete((){
+          gameProvider.stopWhiteTimer();
+
+          startTimer(isWhiteTimer: false, onNewGame: (){});
+        });
       }
     });
   }
@@ -60,9 +66,15 @@ class _GameScreenState extends State<GameScreen> {
     if (result) {
       gameProvider.setSquaresState()
           .whenComplete((){
+            if(gameProvider.player == Squares.white) {
               gameProvider.stopWhiteTimer();
-              startTimer(isWhiteTimer: false, onNewGame: (){});
-              print("White Timer should Stop, and BlackTimer will start...");
+              startTimer(isWhiteTimer: false, onNewGame: () {});
+
+            }else{
+              gameProvider.stopBlackTimer();
+
+              startTimer(isWhiteTimer: true, onNewGame: (){});
+            }
           });
     }
 
@@ -75,11 +87,22 @@ class _GameScreenState extends State<GameScreen> {
        gameProvider.setAiThinking( false);
       gameProvider.setSquaresState()
           .whenComplete((){
-            gameProvider.stopBlackTimer();
-            print("Black Timer should Stop, and WhiteTimer will start...");
-            startTimer(isWhiteTimer: true, onNewGame: (){});
+        if(gameProvider.player == Squares.white) {
+          gameProvider.stopBlackTimer();
+
+          startTimer(isWhiteTimer: true, onNewGame: (){});
+        }else{
+          gameProvider.stopWhiteTimer();
+          startTimer(isWhiteTimer: false, onNewGame: () {});
+
+        }
           });
     }
+    callGameOverListner();
+  }
+  void callGameOverListner(){
+    final gameProvider = context.read<GameProvider>();
+    gameProvider.gameOverListner(context: context, onNewGame: (){});
   }
 
   void startTimer({required bool isWhiteTimer, required Function onNewGame}){
@@ -94,7 +117,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
   final gameProvider = context.read<GameProvider>();
-  print('White Time ${gameProvider.whitesTime} && Black Time ${gameProvider.blacksTime} && Player Color ${gameProvider.playerColor} && Game Level ${gameProvider.gameLevel} && Game Difficulty ${gameProvider.gameDifficulty}');
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.purple,
@@ -130,6 +153,8 @@ class _GameScreenState extends State<GameScreen> {
 
       body: Consumer<GameProvider>(
         builder:  (context, gameProvider, child) {
+          String whiteTimer = getGameTimertoDisplay(gameProvider: gameProvider, isUser: true);
+          String blacksTimer = getGameTimertoDisplay(gameProvider: gameProvider, isUser: false);
           return  Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.start,
@@ -140,7 +165,7 @@ class _GameScreenState extends State<GameScreen> {
                     backgroundImage: AssetImage(AssetManagerChess.stocFishIcon),),
                   title: const Text("Stock Fish"),
                   subtitle: const Text("Rating 3200"),
-                  trailing: Text("${gameProvider.blacksTime}"),
+                  trailing: Text(blacksTimer, style: const TextStyle(fontSize: 16),),
                 ),
 
                 Padding(
@@ -165,7 +190,7 @@ class _GameScreenState extends State<GameScreen> {
                     backgroundImage: AssetImage(AssetManagerChess.userIcon),),
                   title: const Text("Rohan Pal"),
                   subtitle: const Text("Rating 1200"),
-                  trailing: Text("${gameProvider.whitesTime}"),
+                  trailing: Text(whiteTimer, style: const TextStyle(fontSize: 16),),
                 ),
 
               ],

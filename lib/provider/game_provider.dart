@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:bishop/bishop.dart' as bishop;
+import 'package:chess/main_screens/home_screen.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:square_bishop/square_bishop.dart';
 import 'package:squares/squares.dart';
 
@@ -20,7 +22,7 @@ class GameProvider extends ChangeNotifier{
   int _incrementalValue = 0;
   int _player = Squares.white;
   int _whitesScore = 0;
-  int _blacksSCore = 0;
+  int _blacksScore = 0;
   PlayerColor _playerColor = PlayerColor.white;
   GameDifficulty _gameDifficulty = GameDifficulty.easy;
   String _gameId = '';
@@ -40,7 +42,7 @@ class GameProvider extends ChangeNotifier{
   bool get playBlacksTimer => _playBlacksTimer;
 
   int get whitesScore => _whitesScore;
-  int get blacksScore => _blacksSCore;
+  int get blacksScore => _blacksScore;
 
 
   bishop.Game get game => _game;
@@ -207,9 +209,11 @@ class GameProvider extends ChangeNotifier{
         _blackTimer!.cancel();
 
         notifyListeners();
-        //Show Game Over Dialog
-        print("Black has Lost");
 
+        if(context.mounted){
+          //Show Game Over Dialog
+          showGameOverDialogue(context: context, isTimeOut: true, isWhiteWon: true, onNewGame: onNewGame);
+        }
       }
     });
   }
@@ -218,16 +222,14 @@ class GameProvider extends ChangeNotifier{
     _whiteTimer = Timer.periodic(Duration(seconds: 1), (_) {
       _whitesTime = _whitesTime - const Duration(seconds: 1);
       notifyListeners();
-      print("$_whitesTime");
-      print("$_whiteTimer");
+
       if(_whitesTime <= Duration.zero){
         _whiteTimer!.cancel();
-
-
         notifyListeners();
-        //Show Game Over Dialog
-        print("White has Lost");
-
+        if(context.mounted){
+          //Show Game Over Dialog
+          showGameOverDialogue(context: context, isTimeOut: true, isWhiteWon: false, onNewGame: onNewGame);
+        }
       }
     });
   }
@@ -244,6 +246,75 @@ class GameProvider extends ChangeNotifier{
       _whitesTime += Duration(seconds: _incrementalValue);
       _whiteTimer!.cancel();
       notifyListeners();
+    }
+  }
+  void showGameOverDialogue({
+    required BuildContext context,
+    required bool isTimeOut,
+    required bool isWhiteWon,
+    required Function onNewGame
+  }){
+    String resultToShow = "";
+    int whiteScoretoShow = 0;
+    int blackScoretoShow = 0;
+    if(isTimeOut){
+      if(isWhiteWon){
+        resultToShow = "White won on Time";
+        whiteScoretoShow += _whitesScore + 1;
+      }else{
+        resultToShow = "Black won on Time";
+       blackScoretoShow += _blacksScore + 1;
+      }
+    }else{
+      resultToShow = game.result!.readable;
+      if(game.drawn){
+        //Match Draw
+        String whiteResult = game.result!.scoreString.split("-").first;
+        String blackResult = game.result!.scoreString.split("-").last;
+        whiteScoretoShow += int.parse(whiteResult);
+        blackScoretoShow += int.parse(blackResult);
+      }else if(game.winner == Squares.white){
+        String whiteResult = game.result!.scoreString.split("-").first;
+        whiteScoretoShow += int.parse(whiteResult);
+      }else if(game.winner == Squares.black){
+        String blackResult = game.result!.scoreString.split("-").last;
+        blackScoretoShow += int.parse(blackResult);
+      }else if(game.stalemate){
+        whiteScoretoShow = whitesScore;
+        blackScoretoShow = blacksScore;
+      }
+    }
+    showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context)=> AlertDialog(
+          title: Text("Game Over\n $whiteScoretoShow - $blackScoretoShow", textAlign: TextAlign.center,),
+          content: Text(resultToShow, textAlign: TextAlign.center,),
+          actions: [
+            TextButton(onPressed: (){
+              Navigator.pop(context);
+              Navigator.pushAndRemoveUntil
+                (context, MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  (route) => false);
+            }, child: const Text("Cancel", style: TextStyle(color: Colors.red),)),
+
+            TextButton(onPressed: (){
+              Navigator.pop(context);
+            }, child: const Text("New Game", style: TextStyle(color: Colors.green),))
+          ],
+        ));
+
+  }
+  void gameOverListner({required BuildContext context, required Function onNewGame}){
+    if(game.gameOver){
+      stopWhiteTimer();
+      stopBlackTimer();
+
+      if(context.mounted){
+        //Show Game Over Dialog
+        showGameOverDialogue(context: context, isTimeOut: false, isWhiteWon: true, onNewGame: onNewGame);
+      }
+
     }
   }
 

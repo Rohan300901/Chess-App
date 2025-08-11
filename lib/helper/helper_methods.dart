@@ -1,6 +1,9 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:squares/squares.dart';
+
+import '../provider/game_provider.dart';
 
 final List<String> gameTimes = [
   'Bullet 1+0',
@@ -30,3 +33,25 @@ final List<Color> cardColors = [
   Colors.deepOrange,
   Colors.lightBlue,
 ];
+
+String getGameTimertoDisplay({required GameProvider gameProvider, required bool isUser} ){
+  String timer = "";
+  if(isUser){
+    if(gameProvider.player == Squares.white){
+      timer = gameProvider.whitesTime.toString().substring(2,7);
+    }
+    else{
+      timer = gameProvider.blacksTime.toString().substring(2,7);
+    }
+  }
+  else{
+    //StockFish or Other Player
+    if(gameProvider.player == Squares.white){
+      timer = gameProvider.blacksTime.toString().substring(2,7);
+    }
+    else{
+      timer = gameProvider.whitesTime.toString().substring(2,7);
+    }
+  }
+  return timer;
+}

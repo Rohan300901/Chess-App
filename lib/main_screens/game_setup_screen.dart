@@ -337,6 +337,7 @@ class _GameStartUpScreenState extends State<GameStartUpScreen> {
     //     }
     //
         gameProvider.setIsLoading(value: true);
+        gameProvider.setIncrementalValue(value: int.parse(incrementalTime));
 
         await gameProvider
             .setGameTime(
