@@ -1,11 +1,13 @@
 import 'dart:math';
 
 import 'package:bishop/bishop.dart' as bishop;
+import 'package:chess/helper/uci_command.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:square_bishop/square_bishop.dart';
 import 'package:squares/squares.dart';
+import 'package:stockfish/stockfish.dart';
 
 import '../helper/helper_methods.dart';
 import '../provider/game_provider.dart';
@@ -18,16 +20,26 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  late Stockfish stockfish;
+  late GameProvider _gameProvider;
 
 
   @override
   void initState() {
-    final gameProvider = context.read<GameProvider>();
-    gameProvider.resetGame(newGame: false);
+    stockfish = Stockfish();
+    _gameProvider = context.read<GameProvider>();
+    _gameProvider.resetGame(newGame: false);
     if(mounted){
       letOtherPlayerPlayFirst();
     }
     super.initState();
+  }
+  void dispose() {
+    stockfish.dispose();
+    print("Stopping from 39");
+    _gameProvider.stopBlackTimer();
+    _gameProvider.stopWhiteTimer();
+    super.dispose();
   }
 
   // void _resetGame([bool ss = true]) {
@@ -69,8 +81,9 @@ class _GameScreenState extends State<GameScreen> {
             if(gameProvider.player == Squares.white) {
               gameProvider.stopWhiteTimer();
               startTimer(isWhiteTimer: false, onNewGame: () {});
-
+              print("Black Timer Should Start");
             }else{
+              print("Stopping from 86");
               gameProvider.stopBlackTimer();
 
               startTimer(isWhiteTimer: true, onNewGame: (){});
@@ -80,38 +93,122 @@ class _GameScreenState extends State<GameScreen> {
 
     if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
        gameProvider.setAiThinking(true);
-      await Future.delayed(
+       waitUntilStockFishisReady();
+       //******************************
+       //****************************************
+       //**************************************************
+       //************************************************************
+       //Get the Curent Position of the Board and sent it to StockFish
+       stockfish.stdin = '${UCICommand.position} ${gameProvider.getPositionFen()}';
+       //Set StockFish Level
+       stockfish.stdin = '${UCICommand.goMoveTime} ${gameProvider.gameLevel *1000}';
 
-          Duration(milliseconds: Random().nextInt(4750) + 250));
-      gameProvider.game.makeRandomMove();
-       gameProvider.setAiThinking( false);
-      gameProvider.setSquaresState()
-          .whenComplete((){
-        if(gameProvider.player == Squares.white) {
-          gameProvider.stopBlackTimer();
+       stockfish.stdout.listen((event) {
 
-          startTimer(isWhiteTimer: true, onNewGame: (){});
-        }else{
-          gameProvider.stopWhiteTimer();
-          startTimer(isWhiteTimer: false, onNewGame: () {});
+         if(event.contains(UCICommand.bestMove)){
+           String bestMove = event.split(" ")[1];
 
-        }
-          });
+           gameProvider.makeStringMove(bestMove);
+         }
+         gameProvider.setAiThinking( false);
+         gameProvider.setSquaresState().whenComplete((){
+           if(gameProvider.player == Squares.white) {
+             print("Stopping from here 116........");
+             gameProvider.stopBlackTimer();
+
+             startTimer(isWhiteTimer: true, onNewGame: (){});
+           }else{
+             gameProvider.stopWhiteTimer();
+             startTimer(isWhiteTimer: false, onNewGame: () {});
+
+           }
+         });
+       });
+      // await Future.delayed(
+      //
+      //     Duration(milliseconds: Random().nextInt(4750) + 250));
+      // gameProvider.game.makeRandomMove();
+
     }
+    await Future.delayed(const Duration(seconds: 1));
     callGameOverListner();
+  }
+
+  // void _onMove(Move move) async {
+  //   final gameProvider = context.read<GameProvider>();
+  //
+  //   bool result = gameProvider.makeSquaresMove(move);
+  //   if (result) {
+  //     gameProvider.setSquaresState()
+  //         .whenComplete(() {
+  //       if (gameProvider.player == Squares.white) {
+  //         // You just moved as White -> Now it's Black's turn
+  //         gameProvider.stopWhiteTimer();
+  //         startTimer(isWhiteTimer: false, onNewGame: () {});
+  //         print("Black Timer Should Start");
+  //       } else {
+  //         // You just moved as Black -> Now it's White's turn
+  //         print("Stopping from 86");
+  //         gameProvider.stopBlackTimer();
+  //         startTimer(isWhiteTimer: true, onNewGame: () {});
+  //       }
+  //     });
+  //   }
+  //
+  //   if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
+  //     gameProvider.setAiThinking(true);
+  //     await waitUntilStockFishisReady();
+  //
+  //     // Send position to Stockfish
+  //     stockfish.stdin = '${UCICommand.position} ${gameProvider.getPositionFen()}';
+  //     stockfish.stdin = '${UCICommand.goMoveTime} ${gameProvider.gameLevel * 1000}';
+  //
+  //     stockfish.stdout.listen((event) {
+  //       if (event.contains(UCICommand.bestMove)) {
+  //         String bestMove = event.split(" ")[1];
+  //         gameProvider.makeStringMove(bestMove);
+  //       }
+  //
+  //       gameProvider.setAiThinking(false);
+  //       gameProvider.setSquaresState().whenComplete(() {
+  //         // ✅ FIX: Instead of checking "player" again and stopping the timer we just started,
+  //         // we decide based on whose turn it is now.
+  //         if (gameProvider.state.state == PlayState.ourTurn) {
+  //           // AI finished its move -> stop Black timer, start White timer
+  //           print("AI moved, starting White timer...");
+  //           gameProvider.stopBlackTimer();
+  //           startTimer(isWhiteTimer: true, onNewGame: () {});
+  //         } else {
+  //           // Just in case AI is playing as White (reverse scenario)
+  //           print("AI moved, starting Black timer...");
+  //           gameProvider.stopWhiteTimer();
+  //           startTimer(isWhiteTimer: false, onNewGame: () {});
+  //         }
+  //       });
+  //     });
+  //   }
+  //
+  //   await Future.delayed(const Duration(seconds: 1));
+  //   callGameOverListner();
+  // }
+
+  Future<void> waitUntilStockFishisReady()async{
+    while(stockfish.state.value != StockfishState.ready){
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
   }
   void callGameOverListner(){
     final gameProvider = context.read<GameProvider>();
-    gameProvider.gameOverListner(context: context, onNewGame: (){});
+    gameProvider.gameOverListner(context: context,stockfish: stockfish, onNewGame: (){});
   }
 
   void startTimer({required bool isWhiteTimer, required Function onNewGame}){
     final gameProvider = context.read<GameProvider>();
     if(isWhiteTimer){
-      gameProvider.startWhiteTimer(context: context, onNewGame: onNewGame);
+      gameProvider.startWhiteTimer(context: context,stockfish: stockfish, onNewGame: onNewGame);
     }
     else{
-      gameProvider.startBlackTimer(context: context, onNewGame: onNewGame);
+      gameProvider.startBlackTimer(context: context, stockfish: stockfish, onNewGame: onNewGame);
     }
   }
   @override
@@ -128,6 +225,7 @@ class _GameScreenState extends State<GameScreen> {
           onPressed: () {
             // Your custom method here
             gameProvider.stopWhiteTimer();
+            print("Stopping from 169");
             gameProvider.stopBlackTimer();
 
             // Then navigate back

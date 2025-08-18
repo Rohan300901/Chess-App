@@ -6,8 +6,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:square_bishop/square_bishop.dart';
 import 'package:squares/squares.dart';
+import 'package:stockfish/stockfish.dart';
 
 import '../helper/constants.dart';
+import '../helper/uci_command.dart';
 
 class GameProvider extends ChangeNotifier{
   late bishop.Game _game = bishop.Game(variant: bishop.Variant.standard());
@@ -200,35 +202,45 @@ class GameProvider extends ChangeNotifier{
     notifyListeners();
   }
 
-  void startBlackTimer({required BuildContext context, required Function onNewGame}){
+  void startBlackTimer({required BuildContext context, Stockfish? stockfish, required Function onNewGame}){
+    _blackTimer?.cancel();
     _blackTimer = Timer.periodic(Duration(seconds: 1), (_) {
       _blacksTime = _blacksTime - const Duration(seconds: 1);
       notifyListeners();
 
       if(_blacksTime <= Duration.zero){
+        // when Black Time is over Stop StockFish.....
+        if(stockfish != null){
+          stockfish.stdin = '${UCICommand.stop}';
+        }
         _blackTimer!.cancel();
 
         notifyListeners();
 
         if(context.mounted){
           //Show Game Over Dialog
-          showGameOverDialogue(context: context, isTimeOut: true, isWhiteWon: true, onNewGame: onNewGame);
+          showGameOverDialogue(context: context, stockfish: stockfish, isTimeOut: true, isWhiteWon: true, onNewGame: onNewGame);
         }
       }
     });
   }
 
-  void startWhiteTimer({required BuildContext context, required Function onNewGame}){
+  void startWhiteTimer({required BuildContext context, Stockfish? stockfish, required Function onNewGame}){
+    _whiteTimer?.cancel();
     _whiteTimer = Timer.periodic(Duration(seconds: 1), (_) {
       _whitesTime = _whitesTime - const Duration(seconds: 1);
       notifyListeners();
 
       if(_whitesTime <= Duration.zero){
+        // when White Time is over Stop StockFish.....
+        if(stockfish != null){
+          stockfish.stdin = '${UCICommand.stop}';
+        }
         _whiteTimer!.cancel();
         notifyListeners();
         if(context.mounted){
           //Show Game Over Dialog
-          showGameOverDialogue(context: context, isTimeOut: true, isWhiteWon: false, onNewGame: onNewGame);
+          showGameOverDialogue(context: context, stockfish: stockfish, isTimeOut: true, isWhiteWon: false, onNewGame: onNewGame);
         }
       }
     });
@@ -238,6 +250,7 @@ class GameProvider extends ChangeNotifier{
     if(_blackTimer != null) {
       _blacksTime += Duration(seconds: _incrementalValue);
       _blackTimer!.cancel();
+      print("Black Timer is Stopping");
       notifyListeners();
     }
   }
@@ -252,8 +265,13 @@ class GameProvider extends ChangeNotifier{
     required BuildContext context,
     required bool isTimeOut,
     required bool isWhiteWon,
+    Stockfish? stockfish,
     required Function onNewGame
   }){
+    // when Game is over Stop StockFish.....
+    if(stockfish != null){
+      stockfish.stdin = UCICommand.stop;
+    }
     String resultToShow = "";
     int whiteScoretoShow = 0;
     int blackScoretoShow = 0;
@@ -305,14 +323,23 @@ class GameProvider extends ChangeNotifier{
         ));
 
   }
-  void gameOverListner({required BuildContext context, required Function onNewGame}){
+  void gameOverListner({
+    required BuildContext context,
+    Stockfish? stockfish,
+    required Function onNewGame}){
     if(game.gameOver){
+      // when Game is over Stop StockFish.....
+      if(stockfish != null){
+        stockfish.stdin = '${UCICommand.stop}';
+      }
+      //Stop Timer
+
       stopWhiteTimer();
       stopBlackTimer();
 
       if(context.mounted){
         //Show Game Over Dialog
-        showGameOverDialogue(context: context, isTimeOut: false, isWhiteWon: true, onNewGame: onNewGame);
+        showGameOverDialogue(context: context, stockfish : stockfish, isTimeOut: false, isWhiteWon: true, onNewGame: onNewGame);
       }
 
     }
