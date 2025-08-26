@@ -246,19 +246,26 @@ class GameProvider extends ChangeNotifier{
     });
   }
 
-  void stopBlackTimer(){
+  void stopBlackTimer({bool notify = true}){
     if(_blackTimer != null) {
       _blacksTime += Duration(seconds: _incrementalValue);
       _blackTimer!.cancel();
+      _blackTimer = null; // Add this line
       print("Black Timer is Stopping");
-      notifyListeners();
+      if (notify) {
+        notifyListeners();
+      }
     }
   }
-  void stopWhiteTimer(){
+
+  void stopWhiteTimer({bool notify = true}){
     if(_whiteTimer != null) {
       _whitesTime += Duration(seconds: _incrementalValue);
       _whiteTimer!.cancel();
-      notifyListeners();
+      _whiteTimer = null; // Add this line
+      if (notify) {
+        notifyListeners();
+      }
     }
   }
   void showGameOverDialogue({

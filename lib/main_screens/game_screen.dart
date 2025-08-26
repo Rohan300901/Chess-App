@@ -12,6 +12,7 @@ import 'package:stockfish/stockfish.dart';
 import '../helper/helper_methods.dart';
 import '../provider/game_provider.dart';
 import '../service/asset_manager.dart';
+
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
 
@@ -22,33 +23,69 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   late Stockfish stockfish;
   late GameProvider _gameProvider;
-
+  bool _isProcessingMove = false; // Add flag to prevent multiple processing
+  bool wantToExit = false;
 
   @override
   void initState() {
     stockfish = Stockfish();
     _gameProvider = context.read<GameProvider>();
     _gameProvider.resetGame(newGame: false);
+
+    // Set up Stockfish listener once in initState
+    _setupStockfishListener();
+
     if(mounted){
       letOtherPlayerPlayFirst();
     }
     super.initState();
   }
+
+  void _setupStockfishListener() {
+    stockfish.stdout.listen((event) {
+      print("Stockfish output: $event"); // Debug log
+
+      if (event.contains(UCICommand.bestMove) && !_isProcessingMove) {
+        _isProcessingMove = true;
+        String bestMove = event.split(" ")[1];
+        print("Best move received: $bestMove"); // Debug log
+
+        final gameProvider = context.read<GameProvider>();
+        gameProvider.makeStringMove(bestMove);
+        gameProvider.setAiThinking(false);
+
+        gameProvider.setSquaresState().whenComplete(() {
+          // After AI move, determine whose turn it is now
+          if (gameProvider.state.state == PlayState.ourTurn) {
+            // AI finished its move -> it's now human's turn
+            if (gameProvider.player == Squares.white) {
+              // Human plays white, so start white timer
+              print("AI moved, starting White timer...");
+              gameProvider.stopBlackTimer();
+              startTimer(isWhiteTimer: true, onNewGame: () {});
+            } else {
+              // Human plays black, so start black timer
+              print("AI moved, starting Black timer...");
+              gameProvider.stopWhiteTimer();
+              startTimer(isWhiteTimer: false, onNewGame: () {});
+            }
+          }
+          _isProcessingMove = false;
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
     stockfish.dispose();
-    print("Stopping from 39");
-    _gameProvider.stopBlackTimer();
-    _gameProvider.stopWhiteTimer();
+
+    // Stop timers without calling notifyListeners
+    _gameProvider.stopBlackTimer(notify: false);
+    _gameProvider.stopWhiteTimer(notify: false);
     super.dispose();
   }
 
-  // void _resetGame([bool ss = true]) {
-  //   game = bishop.Game(variant: bishop.Variant.standard());
-  //   state = game.squaresState(player);
-  //   if (ss) setState(() {});
-  // }
-  //
-  // void _flipBoard() => setState(() => flipBoard = !flipBoard);
   void letOtherPlayerPlayFirst(){
     final gameProvider = context.read<GameProvider>();
 
@@ -56,20 +93,22 @@ class _GameScreenState extends State<GameScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async{
       if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
         gameProvider.setAiThinking(true);
-        await Future.delayed(
 
-            Duration(milliseconds: Random().nextInt(4750) + 250));
-        gameProvider.game.makeRandomMove();
-        gameProvider.setAiThinking( false);
-        gameProvider.setSquaresState()
-            .whenComplete((){
-          gameProvider.stopWhiteTimer();
+        // Wait for Stockfish to be ready
+        await waitUntilStockFishisReady();
 
-          startTimer(isWhiteTimer: false, onNewGame: (){});
-        });
+        // Send position to Stockfish (starting position)
+        print("Sending starting position to Stockfish: ${gameProvider.getPositionFen()}");
+        stockfish.stdin = '${UCICommand.position} ${gameProvider.getPositionFen()}';
+        stockfish.stdin = '${UCICommand.goMoveTime} ${gameProvider.gameLevel * 1000}';
+        print("Sent go command for first move with time: ${gameProvider.gameLevel * 1000}ms");
+
+        // Note: The move will be handled by the Stockfish listener in _setupStockfishListener()
+        // which will automatically handle the timer switching
       }
     });
   }
+
 
   void _onMove(Move move) async {
     final gameProvider = context.read<GameProvider>();
@@ -77,126 +116,42 @@ class _GameScreenState extends State<GameScreen> {
     bool result = gameProvider.makeSquaresMove(move);
     if (result) {
       gameProvider.setSquaresState()
-          .whenComplete((){
-            if(gameProvider.player == Squares.white) {
-              gameProvider.stopWhiteTimer();
-              startTimer(isWhiteTimer: false, onNewGame: () {});
-              print("Black Timer Should Start");
-            }else{
-              print("Stopping from 86");
-              gameProvider.stopBlackTimer();
-
-              startTimer(isWhiteTimer: true, onNewGame: (){});
-            }
-          });
+          .whenComplete(() {
+        if (gameProvider.player == Squares.white) {
+          // You just moved as White -> Now it's Black's turn
+          gameProvider.stopWhiteTimer();
+          startTimer(isWhiteTimer: false, onNewGame: () {});
+          print("Black Timer Should Start");
+        } else {
+          // You just moved as Black -> Now it's White's turn
+          print("Stopping from 86");
+          gameProvider.stopBlackTimer();
+          startTimer(isWhiteTimer: true, onNewGame: () {});
+        }
+      });
     }
 
     if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
-       gameProvider.setAiThinking(true);
-       waitUntilStockFishisReady();
-       //******************************
-       //****************************************
-       //**************************************************
-       //************************************************************
-       //Get the Curent Position of the Board and sent it to StockFish
-       stockfish.stdin = '${UCICommand.position} ${gameProvider.getPositionFen()}';
-       //Set StockFish Level
-       stockfish.stdin = '${UCICommand.goMoveTime} ${gameProvider.gameLevel *1000}';
+      gameProvider.setAiThinking(true);
+      await waitUntilStockFishisReady();
 
-       stockfish.stdout.listen((event) {
-
-         if(event.contains(UCICommand.bestMove)){
-           String bestMove = event.split(" ")[1];
-
-           gameProvider.makeStringMove(bestMove);
-         }
-         gameProvider.setAiThinking( false);
-         gameProvider.setSquaresState().whenComplete((){
-           if(gameProvider.player == Squares.white) {
-             print("Stopping from here 116........");
-             gameProvider.stopBlackTimer();
-
-             startTimer(isWhiteTimer: true, onNewGame: (){});
-           }else{
-             gameProvider.stopWhiteTimer();
-             startTimer(isWhiteTimer: false, onNewGame: () {});
-
-           }
-         });
-       });
-      // await Future.delayed(
-      //
-      //     Duration(milliseconds: Random().nextInt(4750) + 250));
-      // gameProvider.game.makeRandomMove();
-
+      // Send position to Stockfish
+      print("Sending position to Stockfish: ${gameProvider.getPositionFen()}");
+      stockfish.stdin = '${UCICommand.position} ${gameProvider.getPositionFen()}';
+      stockfish.stdin = '${UCICommand.goMoveTime} ${gameProvider.gameLevel * 1000}';
+      print("Sent go command with time: ${gameProvider.gameLevel * 1000}ms");
     }
+
     await Future.delayed(const Duration(seconds: 1));
     callGameOverListner();
   }
-
-  // void _onMove(Move move) async {
-  //   final gameProvider = context.read<GameProvider>();
-  //
-  //   bool result = gameProvider.makeSquaresMove(move);
-  //   if (result) {
-  //     gameProvider.setSquaresState()
-  //         .whenComplete(() {
-  //       if (gameProvider.player == Squares.white) {
-  //         // You just moved as White -> Now it's Black's turn
-  //         gameProvider.stopWhiteTimer();
-  //         startTimer(isWhiteTimer: false, onNewGame: () {});
-  //         print("Black Timer Should Start");
-  //       } else {
-  //         // You just moved as Black -> Now it's White's turn
-  //         print("Stopping from 86");
-  //         gameProvider.stopBlackTimer();
-  //         startTimer(isWhiteTimer: true, onNewGame: () {});
-  //       }
-  //     });
-  //   }
-  //
-  //   if (gameProvider.state.state == PlayState.theirTurn && !gameProvider.aiThinking) {
-  //     gameProvider.setAiThinking(true);
-  //     await waitUntilStockFishisReady();
-  //
-  //     // Send position to Stockfish
-  //     stockfish.stdin = '${UCICommand.position} ${gameProvider.getPositionFen()}';
-  //     stockfish.stdin = '${UCICommand.goMoveTime} ${gameProvider.gameLevel * 1000}';
-  //
-  //     stockfish.stdout.listen((event) {
-  //       if (event.contains(UCICommand.bestMove)) {
-  //         String bestMove = event.split(" ")[1];
-  //         gameProvider.makeStringMove(bestMove);
-  //       }
-  //
-  //       gameProvider.setAiThinking(false);
-  //       gameProvider.setSquaresState().whenComplete(() {
-  //         // ✅ FIX: Instead of checking "player" again and stopping the timer we just started,
-  //         // we decide based on whose turn it is now.
-  //         if (gameProvider.state.state == PlayState.ourTurn) {
-  //           // AI finished its move -> stop Black timer, start White timer
-  //           print("AI moved, starting White timer...");
-  //           gameProvider.stopBlackTimer();
-  //           startTimer(isWhiteTimer: true, onNewGame: () {});
-  //         } else {
-  //           // Just in case AI is playing as White (reverse scenario)
-  //           print("AI moved, starting Black timer...");
-  //           gameProvider.stopWhiteTimer();
-  //           startTimer(isWhiteTimer: false, onNewGame: () {});
-  //         }
-  //       });
-  //     });
-  //   }
-  //
-  //   await Future.delayed(const Duration(seconds: 1));
-  //   callGameOverListner();
-  // }
 
   Future<void> waitUntilStockFishisReady()async{
     while(stockfish.state.value != StockfishState.ready){
       await Future.delayed(const Duration(milliseconds: 500));
     }
   }
+
   void callGameOverListner(){
     final gameProvider = context.read<GameProvider>();
     gameProvider.gameOverListner(context: context,stockfish: stockfish, onNewGame: (){});
@@ -211,91 +166,99 @@ class _GameScreenState extends State<GameScreen> {
       gameProvider.startBlackTimer(context: context, stockfish: stockfish, onNewGame: onNewGame);
     }
   }
+  bool showExitDialogue(){
+
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-  final gameProvider = context.read<GameProvider>();
+    final gameProvider = context.read<GameProvider>();
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.purple,
-        automaticallyImplyLeading: false,
-        title: Text("Chess by RP",style: TextStyle(color: Colors.white),),centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            // Your custom method here
-            gameProvider.stopWhiteTimer();
-            print("Stopping from 169");
-            gameProvider.stopBlackTimer();
+    return WillPopScope(
+      onWillPop: () async{
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.purple,
+          automaticallyImplyLeading: false,
+          title: Text("Chess by RP",style: TextStyle(color: Colors.white),),centerTitle: true,
+          // leading: IconButton(
+          //   icon: const Icon(Icons.arrow_back, color: Colors.white),
+          //   onPressed: () {
+          //     // Your custom method here
+          //     gameProvider.stopWhiteTimer();
+          //     print("Stopping from 169");
+          //     gameProvider.stopBlackTimer();
+          //
+          //     // Then navigate back
+          //     Navigator.pop(context);
+          //   },
+          // ),
+          actions: [
+            const SizedBox(height: 32),
+            IconButton(
+              onPressed: (){
+                gameProvider.resetGame(newGame: false);
+              },
+              icon: Icon(Icons.rotate_90_degrees_ccw, color: Colors.grey),
+            ),
+            IconButton(
+              onPressed:(){
+                gameProvider.flipTheBoard();
+              },
+              icon: const Icon(Icons.flip_camera_android, color: Colors.grey,),
+            ),
+          ],
+        ),
 
-            // Then navigate back
-            Navigator.pop(context);
+        body: Consumer<GameProvider>(
+          builder:  (context, gameProvider, child) {
+            String whiteTimer = getGameTimertoDisplay(gameProvider: gameProvider, isUser: true);
+            String blacksTimer = getGameTimertoDisplay(gameProvider: gameProvider, isUser: false);
+            return  Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  SizedBox(height: 20,),
+                  ListTile(
+                    leading: CircleAvatar(radius: 25,
+                      backgroundImage: AssetImage(AssetManagerChess.stocFishIcon),),
+                    title: const Text("Stock Fish"),
+                    subtitle: const Text("Rating 3200"),
+                    trailing: Text(blacksTimer, style: const TextStyle(fontSize: 16),),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: BoardController(
+                      state: gameProvider.flipBoard ? gameProvider.state.board.flipped() : gameProvider.state.board,
+                      playState: gameProvider.state.state,
+                      pieceSet: PieceSet.merida(),
+                      theme: BoardTheme.brown,
+                      moves: gameProvider.state.moves,
+                      onMove: _onMove,
+                      onPremove: _onMove,
+                      markerTheme: MarkerTheme(
+                        empty: MarkerTheme.dot,
+                        piece: MarkerTheme.corners(),
+                      ),
+                      promotionBehaviour: PromotionBehaviour.autoPremove,
+                    ),
+                  ),
+                  ListTile(
+                    leading: CircleAvatar(radius: 25,
+                      backgroundImage: AssetImage(AssetManagerChess.userIcon),),
+                    title: const Text("Rohan Pal"),
+                    subtitle: const Text("Rating 1200"),
+                    trailing: Text(whiteTimer, style: const TextStyle(fontSize: 16),),
+                  ),
+                ],
+              ),
+            );
           },
         ),
-        actions: [
-          const SizedBox(height: 32),
-          IconButton(
-            onPressed: (){
-              gameProvider.resetGame(newGame: false);
-            },
-            icon: Icon(Icons.rotate_90_degrees_ccw, color: Colors.grey),
-          ),
-          IconButton(
-            onPressed:(){
-              gameProvider.flipTheBoard();
-            },
-            icon: const Icon(Icons.flip_camera_android, color: Colors.grey,),
-          ),
-        ],
-      ),
-
-      body: Consumer<GameProvider>(
-        builder:  (context, gameProvider, child) {
-          String whiteTimer = getGameTimertoDisplay(gameProvider: gameProvider, isUser: true);
-          String blacksTimer = getGameTimertoDisplay(gameProvider: gameProvider, isUser: false);
-          return  Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                SizedBox(height: 20,),
-                ListTile(
-                  leading: CircleAvatar(radius: 25,
-                    backgroundImage: AssetImage(AssetManagerChess.stocFishIcon),),
-                  title: const Text("Stock Fish"),
-                  subtitle: const Text("Rating 3200"),
-                  trailing: Text(blacksTimer, style: const TextStyle(fontSize: 16),),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: BoardController(
-                    state: gameProvider.flipBoard ? gameProvider.state.board.flipped() : gameProvider.state.board,
-                    playState: gameProvider.state.state,
-                    pieceSet: PieceSet.merida(),
-                    theme: BoardTheme.brown,
-                    moves: gameProvider.state.moves,
-                    onMove: _onMove,
-                    onPremove: _onMove,
-                    markerTheme: MarkerTheme(
-                      empty: MarkerTheme.dot,
-                      piece: MarkerTheme.corners(),
-                    ),
-                    promotionBehaviour: PromotionBehaviour.autoPremove,
-                  ),
-                ),
-                ListTile(
-                  leading: CircleAvatar(radius: 25,
-                    backgroundImage: AssetImage(AssetManagerChess.userIcon),),
-                  title: const Text("Rohan Pal"),
-                  subtitle: const Text("Rating 1200"),
-                  trailing: Text(whiteTimer, style: const TextStyle(fontSize: 16),),
-                ),
-
-              ],
-            ),
-          );
-        },
-
       ),
     );
   }
