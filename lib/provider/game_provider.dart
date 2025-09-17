@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:bishop/bishop.dart' as bishop;
-import 'package:chess/main_screens/home_screen.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:square_bishop/square_bishop.dart';
@@ -10,6 +10,7 @@ import 'package:stockfish/stockfish.dart';
 
 import '../helper/constants.dart';
 import '../helper/uci_command.dart';
+import '../main_screens/home_screen.dart';
 
 class GameProvider extends ChangeNotifier{
   late bishop.Game _game = bishop.Game(variant: bishop.Variant.standard());

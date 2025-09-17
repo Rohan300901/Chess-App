@@ -1,9 +1,19 @@
-import 'package:chess/main_screens/home_screen.dart';
-import 'package:chess/provider/game_provider.dart';
+
+import 'package:chess_cheat_app/provider/game_provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-void main() {
+import 'authentication/welcome_screen.dart';
+import 'firebase_options.dart';
+
+void main() async{
+  GoogleFonts.config.allowRuntimeFetching = false;
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(MultiProvider(providers: [ChangeNotifierProvider(create: (_) =>GameProvider())],
       child : const MyApp()));
 }
@@ -40,6 +50,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
 
-    return HomeScreen();
+   // return HomeScreen();
+    return WelcomeScreen();
   }
 }

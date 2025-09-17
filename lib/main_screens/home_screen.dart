@@ -1,13 +1,10 @@
-
-import 'package:chess/main_screens/game_time_scrreen.dart';
-import 'package:chess/main_screens/setting_screen.dart';
+import 'package:chess_cheat_app/main_screens/setting_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../helper/helper_methods.dart';
 import '../provider/game_provider.dart';
 import '../service/widget_manager.dart';
 import 'about_screen.dart';
+import 'game_time_scrreen.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 

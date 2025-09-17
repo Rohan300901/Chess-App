@@ -1,9 +1,10 @@
-import 'package:chess/helper/helper_methods.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../helper/constants.dart';
+import '../helper/helper_methods.dart';
 import '../provider/game_provider.dart';
 import '../service/widget_manager.dart';
 import 'game_setup_screen.dart';

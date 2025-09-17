@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:bishop/bishop.dart' as bishop;
-import 'package:chess/helper/uci_command.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +10,7 @@ import 'package:squares/squares.dart';
 import 'package:stockfish/stockfish.dart';
 
 import '../helper/helper_methods.dart';
+import '../helper/uci_command.dart';
 import '../provider/game_provider.dart';
 import '../service/asset_manager.dart';
 
