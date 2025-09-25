@@ -1,14 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class NeumorphicAvatar extends StatelessWidget {
   final double radius;
   final String imageUrl;
+  final File? fileImage; // <-- added
   final VoidCallback? onCameraTap;
 
   const NeumorphicAvatar({
     Key? key,
     required this.radius,
     required this.imageUrl,
+    this.fileImage,
     this.onCameraTap,
   }) : super(key: key);
 
@@ -16,38 +19,42 @@ class NeumorphicAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-      Container(
-        width: radius * 2,
-        height: radius * 2,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.grey[300], // background color
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.shade500,
-              offset: const Offset(6, 6),
-              blurRadius: 10,
-              spreadRadius: 1,
+        Container(
+          width: radius * 2,
+          height: radius * 2,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.grey[300], // background color
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.shade500,
+                offset: const Offset(6, 6),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+              const BoxShadow(
+                color: Colors.white,
+                offset: Offset(-6, -6),
+                blurRadius: 20,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: fileImage != null
+                ? Image.file(
+              fileImage!,
+              fit: BoxFit.cover,
+            )
+                : Image.asset(
+              imageUrl,
+              fit: BoxFit.cover,
             ),
-            const BoxShadow(
-              color: Colors.white,
-              offset:   Offset(-6, -6),
-              blurRadius: 20,
-              spreadRadius: 1,
-            ),
-
-          ],
-        ),
-        child: ClipOval(
-          child: Image.asset(
-            imageUrl,
-            fit: BoxFit.cover,
           ),
         ),
-      ),
         Positioned(
-        bottom: 0,
-        right: 0,
+          bottom: 0,
+          right: 0,
           child: GestureDetector(
             onTap: onCameraTap,
             child: Container(
@@ -62,9 +69,10 @@ class NeumorphicAvatar extends StatelessWidget {
                 size: radius * 0.3,
                 color: Colors.white,
               ),
-            )
+            ),
           ),
-        )
-      ]);
+        ),
+      ],
+    );
   }
 }

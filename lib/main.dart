@@ -1,4 +1,5 @@
 
+import 'package:chess_cheat_app/provider/authentication_provider.dart';
 import 'package:chess_cheat_app/provider/game_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +15,13 @@ void main() async{
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(MultiProvider(providers: [ChangeNotifierProvider(create: (_) =>GameProvider())],
+  runApp(
+      MultiProvider(
+          providers: [
+            ChangeNotifierProvider(create: (_) =>GameProvider()),
+            ChangeNotifierProvider(create: (_) =>AuthenticationProvider()),
+
+          ],
       child : const MyApp()));
 }
 
